@@ -4,10 +4,12 @@ title = 'jayjanssen.net'
 description = "MySQL and Infrastructure"
 theme = "LoveIt"
 
+# Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
 params.header.title.name="jayjanssen.net"
+
 params.home.profile.subtitle="MySQL and Infrastructure"
 params.home.profile.gravatarEmail="jay.janssen@gmail.com"
-params.home.profile.typeit=false
+params.home.profile.typeit=true
 params.home.profile.social=true
 
 params.social.Github="jayjanssen"
@@ -16,3 +18,8 @@ params.social.Linkedin="jayjanssen"
 params.page.share.Line=false
 params.page.share.Weibo=false
 params.page.share.Linkedin=true
+params.page.rssFullTest=true
+
+params.footer.hugo=false
+
+params.search.enable=true
