@@ -1,0 +1,7 @@
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+        <title>Categories - Category - jayjanssen.net</title>
+        <link>http://jayjanssen.net/categories/</link>
+        <description>Categories - Category - jayjanssen.net</description>
+        <generator>Hugo -- gohugo.io</generator><language>en-us</language><atom:link href="http://jayjanssen.net/categories/" rel="self" type="application/rss+xml" /></channel>
+</rss>

@@ -1,0 +1,4 @@
+baseURL = 'http://jayjanssen.net/'
+languageCode = 'en-us'
+title = 'jayjanssen.net'
+theme = "LoveIt"
