@@ -2,7 +2,7 @@ baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
 title = 'blog.jayjanssen.net'
 description = "MySQL and Infrastructure"
-permalinks.posts="/:year/:month/:title"
+permalinks.posts="posts/:year/:month/:title"
 
 theme = "LoveIt"
 # Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
