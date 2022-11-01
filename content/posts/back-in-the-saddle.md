@@ -1,11 +1,11 @@
 ---
 title: "Back in the Saddle"
 date: 2022-11-01T07:48:28-04:00
+author: "Jay Janssen"
 draft: false
-toc: true
+toc: false
 ---
 
-## Where I've been
 After a long haiatus, I am back in the world of MySQL and infrastructure.  I spent over 10 years at Percona, first as a _MySQL Consultant_, then as a manager, then as an IT _doer of things_, finally as the Director of IT.  Earlier this year I made the decision to return to an individual contributor status at a new company, [Block](https://block.xyz), or more specifically, [Square](https://squareup.com).
 
 {{< image src="https://images.ctfassets.net/2d5q1td6cyxq/2SqLXL2zJmcUUI2QSkUCy6/71701594cb1fdf6f2e60d34297262d6b/square.01.jpg" width="50%" class="center">}}
