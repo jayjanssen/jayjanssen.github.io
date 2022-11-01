@@ -2,8 +2,9 @@ baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
 title = 'blog.jayjanssen.net'
 description = "MySQL and Infrastructure"
-theme = "LoveIt"
+permalinks.posts="/:year/:month/:title"
 
+theme = "LoveIt"
 # Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
 params.header.title.name="blog.jayjanssen.net"
 
@@ -30,3 +31,10 @@ params.search.type="algolia"
   index = ""
   appID = "ENX1WNBCPD"
   searchKey = "b7a9a79de0bdcdb44df68e38853608f2"
+
+# Comments
+params.page.comment.gitalk.enable=true
+params.page.comment.gitalk.owner="jayjanssen"
+params.page.comment.gitalk.repo="jayjanssen/jayjanssen.github.io"
+params.page.comment.gitalk.clientId="6e20ffecf07f5f413018"
+params.page.comment.gitalk.clientSecret="8e258c44ced6218993ec0eb420d483a58c26fb00"
