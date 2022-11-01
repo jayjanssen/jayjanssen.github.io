@@ -1,11 +1,11 @@
-baseURL = 'http://jayjanssen.net/'
+baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
-title = 'jayjanssen.net'
+title = 'blog.jayjanssen.net'
 description = "MySQL and Infrastructure"
 theme = "LoveIt"
 
 # Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
-params.header.title.name="jayjanssen.net"
+params.header.title.name="blog.jayjanssen.net"
 
 params.home.profile.subtitle="MySQL and Infrastructure"
 params.home.profile.gravatarEmail="jay.janssen@gmail.com"
@@ -19,7 +19,14 @@ params.page.share.Line=false
 params.page.share.Weibo=false
 params.page.share.Linkedin=true
 params.page.rssFullTest=true
+params.page.code.copy=true
+params.page.code.toc=false
 
 params.footer.hugo=false
 
-params.search.enable=true
+params.search.enable=false
+params.search.type="algolia"
+[params.search.algolia]
+  index = ""
+  appID = "ENX1WNBCPD"
+  searchKey = "b7a9a79de0bdcdb44df68e38853608f2"
