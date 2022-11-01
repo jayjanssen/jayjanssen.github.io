@@ -35,6 +35,6 @@ params.search.type="algolia"
 # Comments
 params.page.comment.gitalk.enable=true
 params.page.comment.gitalk.owner="jayjanssen"
-params.page.comment.gitalk.repo="jayjanssen/jayjanssen.github.io"
+params.page.comment.gitalk.repo="jayjanssen.github.io"
 params.page.comment.gitalk.clientId="6e20ffecf07f5f413018"
 params.page.comment.gitalk.clientSecret="8e258c44ced6218993ec0eb420d483a58c26fb00"
