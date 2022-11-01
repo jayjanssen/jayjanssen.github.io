@@ -1,40 +1,45 @@
 baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
 title = 'blog.jayjanssen.net'
+author = 'Jay Janssen'
 description = "MySQL and Infrastructure"
-permalinks.posts="posts/:year/:month/:title"
+permalinks.posts = "posts/:year/:month/:title"
 
 theme = "LoveIt"
 # Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
-params.header.title.name="blog.jayjanssen.net"
+[params.header.title]
+name = "blog.jayjanssen.net"
 
-params.home.profile.subtitle="MySQL and Infrastructure"
-params.home.profile.gravatarEmail="jay.janssen@gmail.com"
-params.home.profile.typeit=true
-params.home.profile.social=true
+[params.home.profile]
+subtitle = "MySQL and Infrastructure"
+gravatarEmail = "jay.janssen@gmail.com"
+typeit = true
+social = true
 
-params.social.Github="jayjanssen"
-params.social.Linkedin="jayjanssen"
+[params.social]
+Github = "jayjanssen"
+Linkedin = "jayjanssen"
 
-params.page.share.Line=false
-params.page.share.Weibo=false
-params.page.share.Linkedin=true
-params.page.rssFullTest=true
-params.page.code.copy=true
-params.page.code.toc=false
+[params.page]
+rssFullText = true
+[params.page.share]
+Line = false
+Weibo = false
+Linkedin = true
+[params.page.code]
+copy = true
 
-params.footer.hugo=false
+[params.footer]
+hugo = false
 
-params.search.enable=false
-params.search.type="algolia"
-[params.search.algolia]
-  index = ""
-  appID = "ENX1WNBCPD"
-  searchKey = "b7a9a79de0bdcdb44df68e38853608f2"
+[params.search]
+enable = true
+type = "lunr"
+highlightTag = "em"
+contentLength = 4000
+snippetLength = 100
+absoluteURL = false
 
-# Comments
-params.page.comment.gitalk.enable=true
-params.page.comment.gitalk.owner="jayjanssen"
-params.page.comment.gitalk.repo="jayjanssen.github.io"
-params.page.comment.gitalk.clientId="6e20ffecf07f5f413018"
-params.page.comment.gitalk.clientSecret="8e258c44ced6218993ec0eb420d483a58c26fb00"
+[outputs]
+# Adding JSON here allows search to work
+home = ["HTML", "RSS", "JSON"]
