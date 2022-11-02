@@ -1,6 +1,6 @@
 baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
-title = 'blog.jayjanssen.net'
+title = 'MySQL and Infrastructure by Jay Janssen'
 author = 'Jay Janssen'
 description = "MySQL and Infrastructure"
 permalinks.posts = "posts/:year/:month/:title"
@@ -26,6 +26,7 @@ rssFullText = true
 Line = false
 Weibo = false
 Linkedin = true
+
 [params.page.code]
 copy = true
 
@@ -43,3 +44,12 @@ absoluteURL = false
 [outputs]
 # Adding JSON here allows search to work
 home = ["HTML", "RSS", "JSON"]
+
+
+[markup.highlight]
+  codeFences = true
+  guessSyntax = true
+  lineNos = true
+  lineNumbersInTable = true
+  # false is a necessary configuration (https://github.com/dillonzq/LoveIt/issues/158)
+  noClasses = false
