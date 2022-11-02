@@ -1,12 +1,16 @@
 baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
 title = 'MySQL and Infrastructure by Jay Janssen'
-author = 'Jay Janssen'
+# author = 'Jay Janssen'
 description = "MySQL and Infrastructure"
 permalinks.posts = "posts/:year/:month/:title"
 
 theme = "LoveIt"
 # Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
+
+[author]
+  name = 'Jay Janssen'
+
 [params]
 title = 'MySQL and Infrastructure by Jay Janssen'
 description = "MySQL and Infrastructure"
@@ -29,6 +33,18 @@ social = true
 Github = "jayjanssen"
 Linkedin = "jayjanssen"
 
+[outputs]
+# Adding JSON here allows search to work
+home = ["HTML", "RSS", "JSON"]
+
+[params.search]
+enable = true
+type = "lunr"
+highlightTag = "em"
+contentLength = 4000
+snippetLength = 100
+absoluteURL = false
+
 [params.page]
 rssFullText = true
 [params.page.share]
@@ -41,19 +57,7 @@ copy = true
 
 [params.footer]
 hugo = false
-
-[params.search]
-enable = true
-type = "lunr"
-highlightTag = "em"
-contentLength = 4000
-snippetLength = 100
-absoluteURL = false
-
-[outputs]
-# Adding JSON here allows search to work
-home = ["HTML", "RSS", "JSON"]
-
+copyright = true
 
 [markup.highlight]
   codeFences = true
