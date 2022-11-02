@@ -1,15 +1,23 @@
 baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
 title = 'MySQL and Infrastructure by Jay Janssen'
-name = 'MySQL and Infrastructure by Jay Janssen'
 author = 'Jay Janssen'
 description = "MySQL and Infrastructure"
 permalinks.posts = "posts/:year/:month/:title"
 
 theme = "LoveIt"
 # Theme settings: https://github.com/dillonzq/LoveIt/blob/master/config.toml
+[params]
+title = 'MySQL and Infrastructure by Jay Janssen'
+description = "MySQL and Infrastructure"
+
+[params.app]
+title = 'MySQL and Infrastructure by Jay Janssen'
+description = "MySQL and Infrastructure"
+
 [params.header.title]
 name = "blog.jayjanssen.net"
+description = "MySQL and Infrastructure"
 
 [params.home.profile]
 subtitle = "MySQL and Infrastructure"
