@@ -1,6 +1,7 @@
 baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
 title = 'MySQL and Infrastructure by Jay Janssen'
+name = 'MySQL and Infrastructure by Jay Janssen'
 author = 'Jay Janssen'
 description = "MySQL and Infrastructure"
 permalinks.posts = "posts/:year/:month/:title"
