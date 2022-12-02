@@ -62,10 +62,12 @@ From these timings, we can see clearly that the global failover operation is rea
 I have tested this many times, and to be fair it is not always this slow.  I have observed the writer endpoint resolving in DNS much sooner than it did in my example here.  I believe this is an AWS _bug_ and AWS claims they will be fixing it soon.  
 
 {{< admonition type=bug >}}
-In my testing (as of December 2022) write downtime can currently take anywhere from **3-15 minutes**.  Even when this DNS propogation bug is fixed (assuming that's what it is), I expect that the best that can be expected for writer downtime will be approximately **3-5 minutes**.
-
+In my testing (as of December 2022) write downtime can currently take up to **15 minutes**.  
 {{< /admonition >}}
 
+{{< admonition type=warning >}}
+Even when the above DNS propogation bug is fixed (assuming that's what it is), I expect that the best that can be expected for writer downtime will be approximately **3-5 minutes**.
+{{< /admonition >}}
 
 {{< admonition type=tip >}}
 Anyone who needs to run routine DR testing on Aurora Global clusters will want to strongly consider doing so off-peak hours
