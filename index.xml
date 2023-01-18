@@ -1,4 +1,185 @@
-<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0"><channel><title>MySQL and Infrastructure by Jay Janssen</title><link>http://blog.jayjanssen.net/</link><description>MySQL and Infrastructure</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 02 Dec 2022 08:17:57 -0500</lastBuildDate><atom:link href="http://blog.jayjanssen.net/index.xml" rel="self" type="application/rss+xml"/><item><title>Aurora Global Failovers</title><link>http://blog.jayjanssen.net/posts/2022/12/aurora-global-failovers/</link><pubDate>Fri, 02 Dec 2022 08:17:57 -0500</pubDate><author>Jay Janssen</author><guid>http://blog.jayjanssen.net/posts/2022/12/aurora-global-failovers/</guid><description><![CDATA[<p>As part of an overwhelming stampede to migrate to the cloud, we are looking at using <em>AWS RDS Aurora MySQL</em> as a platform for some of our database clusters.  Lots of people have lots of opinions about Aurora, some of them are probably justified and some probably not.</p>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0"><channel><title>MySQL and Infrastructure by Jay Janssen</title><link>http://blog.jayjanssen.net/</link><description>MySQL and Infrastructure</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 18 Jan 2023 08:08:38 -0500</lastBuildDate><atom:link href="http://blog.jayjanssen.net/index.xml" rel="self" type="application/rss+xml"/><item><title>RDS/Aurora IAM DB access with MySQL Shell</title><link>http://blog.jayjanssen.net/posts/2023/01/rds/aurora-iam-db-access-with-mysql-shell/</link><pubDate>Wed, 18 Jan 2023 08:08:38 -0500</pubDate><author>Jay Janssen</author><guid>http://blog.jayjanssen.net/posts/2023/01/rds/aurora-iam-db-access-with-mysql-shell/</guid><description><![CDATA[<p>As probably with anyone experimenting with <a href="https://dev.mysql.com/doc/refman/8.0/en/mysql-innodb-cluster-introduction.html" target="_blank" rel="noopener noreffer ">Innodb Cluster</a> and <a href="https://dev.mysql.comdoc/refman/8.0/en/" target="_blank" rel="noopener noreffer ">MySQL 8</a>, I&rsquo;ve spent a good deal of time with <a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/" target="_blank" rel="noopener noreffer ">MySQL Shell</a>. I think for some old-timers MySQL Shell can initially come across as odd or difficult to understand.  Partially, I think it is because Shell offers a deluge of new features from:</p>
+<ul>
+<li><a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/admin-api-sandboxes.html" target="_blank" rel="noopener noreffer ">managing local sandbox mysql instances</a></li>
+<li><a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/mysql-shell-active-language.html" target="_blank" rel="noopener noreffer ">3 different shell languages</a> (SQL, Javascript, and Python),</li>
+<li><a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/mysql-innodb-cluster.html" target="_blank" rel="noopener noreffer ">full management APIs for Innodb Cluster</a>,</li>
+<li><a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/mysql-shell-utilities-dump-instance-schema.html" target="_blank" rel="noopener noreffer ">parallel logical backup and restore utilities</a></li>
+<li>and probably a whole lot more I haven&rsquo;t found yet.</li>
+</ul>
+<p>However, as I&rsquo;ve grown more comfortable with it, I can say that I do like it&rsquo;s possibilities.</p>
+<h2 id="credential-storage">Credential storage</h2>
+<p>One of Shell&rsquo;s features is <a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/mysql-shell-pluggable-password-store.html" target="_blank" rel="noopener noreffer ">credential storage</a>.  By default, you will be prompted if you want to save the password you use to make a successful mysql connection.  This is fine as a convenience, but what is more interesting to me is the fact that the credential store is pluggable.  But how?</p>
+<p>The interface for creating a credential storage plugin is not documented (as far as I can tell) in the manual.  The best (and only) documentation I could find on this is from <a href="https://dev.mysql.com/blog-archive/mysql-shell-8-0-12-storing-mysql-passwords-securely/" target="_blank" rel="noopener noreffer ">a MySQL dev blog from 2018</a>, see the lower section &lsquo;Custom credential helpers&rsquo;.</p>
+<p>In a nutshell, a credential helper is just an executable that Shell runs on the same system you are running MySQL shell on.  The executable must implement 5 subcommands in the format <code>mysql-secret-store-yourname &lt;subcommand&gt;</code>.  Some subcommands take JSON on standard input, some emit JSON on standard output, some do both.  The executable should exit with a 0 on success or a 1 on failure for any of the comands.  The executable must be in a specific directory so that Shell can find it.  Simple enough, right?  The 5 subcommands are:</p>
+<ul>
+<li>store - stores credentials passed in</li>
+<li>get - gets requested credentials</li>
+<li>erase - drop specific credentials from the store</li>
+<li>list - list all available credentials</li>
+<li>version - output a version number</li>
+</ul>
+<h2 id="rds-and-aurora">RDS and Aurora</h2>
+<p>How might I use the credential store?  Well, I am using RDS and Aurora more and more these days.  As a DBA type at my company, I need to access a wide variety of databases on AWS.  All of these have been setup to allow access to me as a DBA using a <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html" target="_blank" rel="noopener noreffer ">standard IAM user</a> using temporary IAM credentials.  The basic pre requisites are:</p>
+<ol>
+<li>I have credentials to access a given AWS account with a specific (and limited) role that allows me to generate IAM tokens</li>
+<li>There is a <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html" target="_blank" rel="noopener noreffer ">mysql user setup connected to the role with a special plugin that associates it with IAM Authentication</a>.</li>
+</ol>
+<p>To get DB access I then:</p>
+<ol>
+<li>I use my AWS credentials to generate an IAM token</li>
+<li>I setup an SSH tunnel to a place where I can access the network addresses of the DB</li>
+<li>I run my mysql client more or less as normal, but I have to pass the IAM token as my password and use the SSH tunnel port for proper routing</li>
+</ol>
+<p>Using the AWS CLI and pseudo-bash, it would basically look like this:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">ssh -L &#34;$LOCAL_PORT:$ENDPOINT:$PORT&#34; $SSH_BASTION &amp;
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">TOKEN=`aws rds generate-db-auth-token \
+</span></span><span class="line"><span class="cl">  --hostname &#34;$ENDPOINT&#34; \
+</span></span><span class="line"><span class="cl">  --port &#34;$PORT&#34;\ 
+</span></span><span class="line"><span class="cl">  --profile &#34;$AWS_PROFILE&#34; \
+</span></span><span class="line"><span class="cl">  --username &#34;$MYSQL_USER/IAM ROLE NAME&#34;`
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mysql -u &#34;$MYSQL_USER/IAM ROLE NAME&#34; &#34;-p=$TOKEN&#34; -h 127.0.0.1 -p $LOCAL_PORT
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>The token is good for 15 minutes, so I can cache the value for up to that long and subsequent connections can re-use it.  I can also re-use the SSH tunnel as long as it is open and connecting to the endpoint I want to use.</p>
+<h2 id="meeting-the-two-in-the-middle">Meeting the two in the middle</h2>
+<p>What if there was a way to connect these two systems?  I don&rsquo;t have a huge use case for storing static credentials, but what if I could write a Credential store that would handle fetching these temporary credentials for me?</p>
+<p>It turns out that this is pretty easy. I can use any scripting or compiled language I want, provided I implement the needed interface and deal with Server URLs.</p>
+<h2 id="turning-server-urls-into-what-we-need">Turning Server URLs into what we need</h2>
+<p>One big obstacle however is that the interface provides a single key: Server URL. This is comprised of:</p>
+<ul>
+<li>user name</li>
+<li>host name</li>
+<li>port number</li>
+</ul>
+<p>Somehow I have to take that input and generate the following information so I can get my IAM token:</p>
+<ul>
+<li>the <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html" target="_blank" rel="noopener noreffer ">AWS config profile</a> name for the target DB&rsquo;s account.  Other AWS credential types could be used here instead.</li>
+<li>the AWS region of the specific host I&rsquo;m connecting to</li>
+<li>the RDS/Aurora endpoint I&rsquo;m connecting to (probably the hostname in the URL)</li>
+<li>the IAM role to get a token for (I believe this has to be the mysql user name, but I could be mistaken here) (probably the user name in the URL)</li>
+</ul>
+<p>The solution for how to do this depends greatly on conventions very specific to my environment.  I ended up using a combination of parsing (i.e., to extract the region) and convention (my aws profile names and my RDS endpoints share common elements I can parse out).</p>
+<p>How you might need to implement this is going to be specific to your setup as well, but it could be as simple as a local YAML / JSON config file you manage by hand.  For example:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">my-endpoint.us-east-1.rds.amazonaws.com</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">aws_profile</span><span class="p">:</span><span class="w"> </span><span class="l">profile_name</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">region</span><span class="p">:</span><span class="w"> </span><span class="l">us-east-1</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>Then you can take that profile and region and use it in your AWS API/CLI calls.  YMMV.</p>
+<h2 id="the-interface">The interface</h2>
+<p>But how should the interface behave?  This isn&rsquo;t necessarily what the good folks at Oracle expected when they designed credential helpers.  Let&rsquo;s talk about how we might handle each subcommand:</p>
+<h3 id="get">get</h3>
+<p>This is the meat and potatoes where we need to turn the requested ServerURL into an IAM token.  We convert the given Server URL into our needed AWS information and use either the AWS API or CLI to generate a token.</p>
+<p>This method also handles caching the token for the 15 minutes.  If get is called again, we can use the cached version and skip all the AWS calls.  If the cache is expired, we fetch a new token as before.</p>
+<p>This is a DB secret, so storage of this cache should be handled with some care.</p>
+<h3 id="store">store</h3>
+<p>No-op.  We don&rsquo;t actually store credentials with this helper, just retrieve.</p>
+<h3 id="erase">erase</h3>
+<p>Shell calls this for some reason the authentication fails.  I implemented this to drop the Server URL in my cache in case the token needed to be regenerated, e.g., the token expired but my cache TTL didn&rsquo;t work.</p>
+<h3 id="list">list</h3>
+<p>I simply list the Server URLs in my cache, i.e., my cache keys.  My cache doesn&rsquo;t actually drop entries until <code>get</code> is called, so this serves as a list of servers I&rsquo;ve successfully authenticated to in the past (remember failed auth calls <code>erase</code> on a key).  I don&rsquo;t know if I will keep it that way or not yet.</p>
+<h3 id="version">version</h3>
+<p>Just emit some version string for my handler</p>
+<h2 id="handling-the-tunnel">Handling the tunnel</h2>
+<p>It turns out that MySQL Shell already has <a href="https://dev.mysql.com/doc/mysql-shell/8.0/en/mysql-shell-connection-ssh.html" target="_blank" rel="noopener noreffer ">support for ssh tunneling</a>.  One less thing to worry about!  When I connect in the shell, I just give it the ssh bastion hostname I use above, and it does the rest.</p>
+<h2 id="tying-it-together">Tying it together</h2>
+<p>To use my credential helper, I have to have the executable be named <code>mysql-secret-store-&lt;myname&gt;</code> and it must be located in the same folder as the MySQL Shell binary.  I ended up writing my helper in Golang and when I have a new version I like to run <code>go install</code>, so I simply created a symlink from my go bin directory to where Homebrew installed Shell for me:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-sh" data-lang="sh"><span class="line"><span class="cl">ln -sf <span class="nv">$GOPATH</span>/bin/mysql-secret-store-rds /usr/local/mysql-shell/bin/mysql-secret-store-rds
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>I have to then update my shell&rsquo;s config to use this helper</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">MySQL  JS &gt; \option --persist credentialStore.helper=&#39;rds&#39;
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>You may or may not want this to be a permanent setting.  I am planning on making mine permanent, but extending my handler to be a transparent wrapper around another handler when I determine the Server URL is not RDS/Aurora.</p>
+<p>Finally, I&rsquo;m ready to make a connection:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">MySQL  JS &gt; shell.connect({
+</span></span><span class="line"><span class="cl"> 	ssh:&#34;bastion.host.name&#34;,
+</span></span><span class="line"><span class="cl"> 	host:&#34;rds.endpoint.rds.amazonaws.com&#34;,
+</span></span><span class="line"><span class="cl"> 	port: &#34;3306&#34;,
+</span></span><span class="line"><span class="cl"> 	user: &#34;dba-user&#34;,
+</span></span><span class="line"><span class="cl"> 	&#34;ssl-ca&#34;:&#34;/Users/jayj/.aws/rds-combined-ca-bundle.pem&#34;,
+</span></span><span class="line"><span class="cl"> 	&#34;ssl-mode&#34;: &#34;VERIFY_CA&#34;
+</span></span><span class="line"><span class="cl">})
+</span></span><span class="line"><span class="cl">Creating a session to &#39;dba-user@rds.endpoint.rds.amazonaws.com:3306?ssl-ca=%2FUsers%2Fjayj%2F.aws%2Frds-combined-ca-bundle.pem&amp;ssl-mode=VERIFY_CA&#39;
+</span></span><span class="line"><span class="cl">Opening SSH tunnel to bastion.host.name:22...
+</span></span><span class="line"><span class="cl">Fetching schema names for auto-completion... Press ^C to stop.
+</span></span><span class="line"><span class="cl">Closing old connection...
+</span></span><span class="line"><span class="cl">Your MySQL connection id is 3692
+</span></span><span class="line"><span class="cl">Server version: 5.7.12-log MySQL Community Server (GPL)
+</span></span><span class="line"><span class="cl">No default schema selected; type \use &lt;schema&gt; to set one.
+</span></span><span class="line"><span class="cl">&lt;ClassicSession:dba-user@rds.endpoint.rds.amazonaws.com:3306&gt;
+</span></span><span class="line"><span class="cl"> MySQL  bastion.host.name &gt; rds.endpoint.rds.amazonaws.com:3306 ssl  JS &gt; \sql select @@aurora_version;
+</span></span><span class="line"><span class="cl">+------------------+
+</span></span><span class="line"><span class="cl">| @@aurora_version |
+</span></span><span class="line"><span class="cl">+------------------+
+</span></span><span class="line"><span class="cl">| 2.11.0           |
+</span></span><span class="line"><span class="cl">+------------------+
+</span></span><span class="line"><span class="cl">1 row in set (0.0445 sec)
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>Success!</p>
+<p>Like I said before, I can&rsquo;t really open source my version of this because of the environment specific stuff I do to get from a Server URL to the AWS metadata I need to lookup the token.  I will say that my resulting Go code is only about ~300 lines and most of that is some semi-ugly string parsing.  My hope with this post is it inpires you to consider other ways MySQL Shell&rsquo;s pluggable credential helper might be useful for you.</p>
+]]></description></item><item><title>Aurora Global Failovers</title><link>http://blog.jayjanssen.net/posts/2022/12/aurora-global-failovers/</link><pubDate>Fri, 02 Dec 2022 08:17:57 -0500</pubDate><author>Jay Janssen</author><guid>http://blog.jayjanssen.net/posts/2022/12/aurora-global-failovers/</guid><description><![CDATA[<p>As part of an overwhelming stampede to migrate to the cloud, we are looking at using <em>AWS RDS Aurora MySQL</em> as a platform for some of our database clusters.  Lots of people have lots of opinions about Aurora, some of them are probably justified and some probably not.</p>
 <p>I was interested in testing the high availability and disaster recovery capabilities of Aurora.  To be specific, I am testing Aurora v2 (though I expect v3 to work the same).  I am also specifically testing <a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html" target="_blank" rel="noopener noreffer ">Aurora Global databases</a></p>
 <h2 id="aurora-global-clusters">Aurora Global Clusters</h2>
 <p>Aurora global databases are relatively simple to understand.  Perhaps the best way is to describe it in the order in which you would construct it:</p>
