@@ -2,6 +2,7 @@
 title: "RDS/Aurora IAM DB access with MySQL Shell"
 date: 2023-01-18T08:08:38-05:00
 draft: false
+tags: ['rds', 'aurora', 'mysql shell']
 ---
 
 As probably with anyone experimenting with [Innodb Cluster](https://dev.mysql.com/doc/refman/8.0/en/mysql-innodb-cluster-introduction.html) and [MySQL 8](https://dev.mysql.comdoc/refman/8.0/en/), I've spent a good deal of time with [MySQL Shell](https://dev.mysql.com/doc/mysql-shell/8.0/en/). I think for some old-timers MySQL Shell can initially come across as odd or difficult to understand.  Partially, I think it is because Shell offers a deluge of new features from:

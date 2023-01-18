@@ -2,6 +2,7 @@
 title: "Aurora Global Failovers"
 date: 2022-12-02T08:17:57-05:00
 draft: false
+tags: ['aurora', 'failover', 'disaster recovery']
 ---
 
 As part of an overwhelming stampede to migrate to the cloud, we are looking at using _AWS RDS Aurora MySQL_ as a platform for some of our database clusters.  Lots of people have lots of opinions about Aurora, some of them are probably justified and some probably not.  
