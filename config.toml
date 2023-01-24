@@ -32,6 +32,7 @@ social = true
 [params.social]
 Github = "jayjanssen"
 Linkedin = "jayjanssen"
+Twitter = "jayjanssen"
 
 [outputs]
 # Adding JSON here allows search to work
