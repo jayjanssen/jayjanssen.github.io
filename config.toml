@@ -1,6 +1,6 @@
 baseURL = 'http://blog.jayjanssen.net/'
 languageCode = 'en-us'
-title = 'MySQL and Infrastructure by Jay Janssen'
+title = "Jay Janssen's MySQL and Infrastructure"
 # author = 'Jay Janssen'
 description = "MySQL and Infrastructure"
 permalinks.posts = "posts/:year/:month/:title"
@@ -12,11 +12,11 @@ theme = "LoveIt"
   name = 'Jay Janssen'
 
 [params]
-title = 'MySQL and Infrastructure by Jay Janssen'
+title = "Jay Janssen's MySQL and Infrastructure"
 description = "MySQL and Infrastructure"
 
 [params.app]
-title = 'MySQL and Infrastructure by Jay Janssen'
+title = "Jay Janssen's MySQL and Infrastructure"
 description = "MySQL and Infrastructure"
 
 [params.header.title]
@@ -24,7 +24,7 @@ name = "blog.jayjanssen.net"
 description = "MySQL and Infrastructure"
 
 [params.home.profile]
-subtitle = "MySQL and Infrastructure"
+subtitle = "Jay Janssen's MySQL and Infrastructure"
 gravatarEmail = "jay.janssen@gmail.com"
 typeit = true
 social = true
