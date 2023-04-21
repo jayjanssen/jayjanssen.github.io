@@ -45,8 +45,9 @@
         </div>
     </div>
 <p>We did not notice this behavior change until we started getting replication stopped alerts on our backup replicas.</p>
+<p>If you read the manual, it turns out this option is specifically for <em>temporary tables</em>.</p>
 <h2 id="which-temporary-tables">Which temporary tables?</h2>
-<p>It all comes down to temporary tables.  First, we need to distinguish between <a href="https://dev.mysql.com/doc/refman/8.0/en/internal-temporary-tables.html" target="_blank" rel="noopener noreffer "><em>internal</em> temporary tables</a> and (what I like to call) <em>explicit</em> temporary tables, or those created explicity by clients with the <a href="https://dev.mysql.com/doc/refman/8.0/en/create-temporary-table.html" target="_blank" rel="noopener noreffer "><code>CREATE TEMPORARY TABLES</code> statement</a>.</p>
+<p>First, we need to distinguish between <a href="https://dev.mysql.com/doc/refman/8.0/en/internal-temporary-tables.html" target="_blank" rel="noopener noreffer "><em>internal</em> temporary tables</a> and (what I like to call) <em>explicit</em> temporary tables, or those created explicity by clients with the <a href="https://dev.mysql.com/doc/refman/8.0/en/create-temporary-table.html" target="_blank" rel="noopener noreffer "><code>CREATE TEMPORARY TABLES</code> statement</a>.</p>
 <h2 id="why-do-we-care-about-explicit-temporary-tables-and-replication">Why do we care about explicit temporary tables and replication?</h2>
 <p>Why do we care about explicit temporary tables on replicas?  It&rsquo;s complicated, so I&rsquo;ll let the 5.7 MySQL manual explain: <a href="https://dev.mysql.com/doc/refman/5.7/en/replication-features-temptables.html" target="_blank" rel="noopener noreffer ">https://dev.mysql.com/doc/refman/5.7/en/replication-features-temptables.html</a>.  Got all that?</p>
 <p><strong>TL;DR:</strong> <code>STATEMENT</code> based replication</p>
