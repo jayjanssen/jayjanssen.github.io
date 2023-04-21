@@ -37,9 +37,11 @@ What may not be clear here is that copying InnoDB files is essentially the *enti
 
 We did not notice this behavior change until we started getting replication stopped alerts on our backup replicas.  
 
+If you read the manual, it turns out this option is specifically for *temporary tables*.
+
 ## Which temporary tables?
 
-It all comes down to temporary tables.  First, we need to distinguish between [*internal* temporary tables](https://dev.mysql.com/doc/refman/8.0/en/internal-temporary-tables.html) and (what I like to call) *explicit* temporary tables, or those created explicity by clients with the [`CREATE TEMPORARY TABLES` statement](https://dev.mysql.com/doc/refman/8.0/en/create-temporary-table.html).
+First, we need to distinguish between [*internal* temporary tables](https://dev.mysql.com/doc/refman/8.0/en/internal-temporary-tables.html) and (what I like to call) *explicit* temporary tables, or those created explicity by clients with the [`CREATE TEMPORARY TABLES` statement](https://dev.mysql.com/doc/refman/8.0/en/create-temporary-table.html).
 
 ## Why do we care about explicit temporary tables and replication?
 
