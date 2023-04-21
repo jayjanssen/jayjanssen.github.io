@@ -1,7 +1,7 @@
 ---
 title: "Is Xtrabackup's --safe-slave-backup still relevant?"
 date: 2023-04-21T08:43:50-04:00
-draft: true
+draft: false
 tags: ['xtrabackup', 'mysql8']
 ---
 
