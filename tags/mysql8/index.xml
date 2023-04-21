@@ -1,0 +1,273 @@
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0"><channel><title>mysql8 - Tag - Jay Janssen's MySQL and Infrastructure</title><link>http://blog.jayjanssen.net/tags/mysql8/</link><description>mysql8 - Tag - Jay Janssen's MySQL and Infrastructure</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 21 Apr 2023 08:43:50 -0400</lastBuildDate><atom:link href="http://blog.jayjanssen.net/tags/mysql8/" rel="self" type="application/rss+xml"/><item><title>Is Xtrabackup's --safe-slave-backup still relevant?</title><link>http://blog.jayjanssen.net/posts/2023/04/is-xtrabackups--safe-slave-backup-still-relevant/</link><pubDate>Fri, 21 Apr 2023 08:43:50 -0400</pubDate><author>Jay Janssen</author><guid>http://blog.jayjanssen.net/posts/2023/04/is-xtrabackups--safe-slave-backup-still-relevant/</guid><description><![CDATA[<p>Like a lot of people, we&rsquo;re going through MySQL 8 upgrades and finding the sorts of things that change from major version to major version.  One of these things that changed behavior in MySQL 8 is in Xtrabackup.</p>
+<p>Specifically, and for time immemorial, we have used the <code>--safe-slave-backup</code> in Xtrabackup<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>.  We take Xtrabackups from our replicas, so it sounds like a setting everyone can agree with, right?</p>
+<div class="details admonition note open">
+        <div class="details-summary admonition-title">
+            <i class="icon fas fa-pencil-alt fa-fw" aria-hidden="true"></i>TL;DR<i class="details-icon fas fa-angle-right fa-fw" aria-hidden="true"></i>
+        </div>
+        <div class="details-content">
+            <div class="admonition-content"><ul>
+<li>If you use Xtrabackup with <code>--safe-slave-backup</code> on a MySQL 8 replica, it will stop replication for the entire backup when it did not do so on 5.7</li>
+<li>If you don&rsquo;t know what <code>--safe-slave-backup</code> really does and you use it, you should check it out.  Hint: You probably don&rsquo;t need it.</li>
+</ul>
+</div>
+        </div>
+    </div>
+<h2 id="differences-between-57-and-80-behavior">Differences between 5.7 and 8.0 behavior</h2>
+<p>Take a close look at the differences in the Xtrabackup documentation between 8.0 and 2.3 (the Xtrabackup version that supported MySQL 5.7):</p>
+<ul>
+<li><a href="https://docs.percona.com/percona-xtrabackup/2.4/innobackupex/replication_ibk.html?h=replication&#43;envir#innobackupex-safe-slave-backup" target="_blank" rel="noopener noreffer ">2.3 &ndash;safe-slave-backup</a></li>
+<li><a href="https://docs.percona.com/percona-xtrabackup/8.0/xtrabackup_bin/replication.html#the-safe-slave-backup-option" target="_blank" rel="noopener noreffer ">8.0 &ndash;safe-slave-backup</a></li>
+</ul>
+<p>As one might expect from an option called <code>--safe-slave-backup</code><sup id="fnref1:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>, both pages state:
+<div class="details admonition quote open">
+        <div class="details-summary admonition-title">
+            <i class="icon fas fa-quote-right fa-fw" aria-hidden="true"></i>Quote<i class="details-icon fas fa-angle-right fa-fw" aria-hidden="true"></i>
+        </div>
+        <div class="details-content">
+            <div class="admonition-content">Using this option is always recommended when taking backups from a replica server.</div>
+        </div>
+    </div></p>
+<p>However, looking closely at the differences, Xtrabackup 8.0 doc states:</p>
+<div class="details admonition quote open">
+        <div class="details-summary admonition-title">
+            <i class="icon fas fa-quote-right fa-fw" aria-hidden="true"></i>Quote<i class="details-icon fas fa-angle-right fa-fw" aria-hidden="true"></i>
+        </div>
+        <div class="details-content">
+            <div class="admonition-content">As of Percona XtraBackup 8.0.22-15.0, using a safe-slave-backup option stops the SQL replica thread before copying the InnoDB files.</div>
+        </div>
+    </div>
+<div class="details admonition warning open">
+        <div class="details-summary admonition-title">
+            <i class="icon fas fa-exclamation-triangle fa-fw" aria-hidden="true"></i>Warning<i class="details-icon fas fa-angle-right fa-fw" aria-hidden="true"></i>
+        </div>
+        <div class="details-content">
+            <div class="admonition-content">What may not be clear here is that copying InnoDB files is essentially the <em>entirety</em> of the Xtrabackup.  In 5.7, this was only done <em>after</em> the Innodb files were copied when other non-transaction tables were copied.</div>
+        </div>
+    </div>
+<p>We did not notice this behavior change until we started getting replication stopped alerts on our backup replicas.</p>
+<h2 id="which-temporary-tables">Which temporary tables?</h2>
+<p>It all comes down to temporary tables.  First, we need to distinguish between <a href="https://dev.mysql.com/doc/refman/8.0/en/internal-temporary-tables.html" target="_blank" rel="noopener noreffer "><em>internal</em> temporary tables</a> and (what I like to call) <em>explicit</em> temporary tables, or those created explicity by clients with the <a href="https://dev.mysql.com/doc/refman/8.0/en/create-temporary-table.html" target="_blank" rel="noopener noreffer "><code>CREATE TEMPORARY TABLES</code> statement</a>.</p>
+<h2 id="why-do-we-care-about-explicit-temporary-tables-and-replication">Why do we care about explicit temporary tables and replication?</h2>
+<p>Why do we care about explicit temporary tables on replicas?  It&rsquo;s complicated, so I&rsquo;ll let the 5.7 MySQL manual explain: <a href="https://dev.mysql.com/doc/refman/5.7/en/replication-features-temptables.html" target="_blank" rel="noopener noreffer ">https://dev.mysql.com/doc/refman/5.7/en/replication-features-temptables.html</a>.  Got all that?</p>
+<p><strong>TL;DR:</strong> <code>STATEMENT</code> based replication</p>
+<h2 id="why-is-xtrabackup-8-stopping-replication-for-the-entire-backup">Why is Xtrabackup 8 stopping replication for the entire backup?</h2>
+<p>Ok, but why the change iin Xtrabackup 8?  I&rsquo;m actually not sure.  At first I thought it was because explicit temporary tables were still defaulting MyISAM in 5.7, but that isn&rsquo;t true:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-mysql" data-lang="mysql"><span class="line"><span class="cl"><span class="n">Welcome</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">MySQL</span><span class="w"> </span><span class="n">monitor</span><span class="p">.</span><span class="w">  </span><span class="n">Commands</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="p">;</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="err">\</span><span class="n">g</span><span class="p">.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Your</span><span class="w"> </span><span class="n">MySQL</span><span class="w"> </span><span class="n">connection</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="mi">2</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Server</span><span class="w"> </span><span class="n">version</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">.</span><span class="mi">7</span><span class="p">.</span><span class="mi">41</span><span class="o">-</span><span class="n">log</span><span class="w"> </span><span class="n">MySQL</span><span class="w"> </span><span class="n">Community</span><span class="w"> </span><span class="nf">Server</span><span class="w"> </span><span class="p">(</span><span class="n">GPL</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nf">Copyright</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="mi">2000</span><span class="p">,</span><span class="w"> </span><span class="mi">2023</span><span class="p">,</span><span class="w"> </span><span class="n">Oracle</span><span class="w"> </span><span class="k">and</span><span class="o">/</span><span class="k">or</span><span class="w"> </span><span class="n">its</span><span class="w"> </span><span class="n">affiliates</span><span class="p">.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Oracle</span><span class="w"> </span><span class="k">is</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">registered</span><span class="w"> </span><span class="n">trademark</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">Oracle</span><span class="w"> </span><span class="n">Corporation</span><span class="w"> </span><span class="k">and</span><span class="o">/</span><span class="k">or</span><span class="w"> </span><span class="n">its</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">affiliates</span><span class="p">.</span><span class="w"> </span><span class="n">Other</span><span class="w"> </span><span class="n">names</span><span class="w"> </span><span class="n">may</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="n">trademarks</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">their</span><span class="w"> </span><span class="n">respective</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">owners</span><span class="p">.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Type</span><span class="w"> </span><span class="s1">&#39;help;&#39;</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="s1">&#39;\h&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">help</span><span class="p">.</span><span class="w"> </span><span class="n">Type</span><span class="w"> </span><span class="s1">&#39;\c&#39;</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">clear</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="n">statement</span><span class="p">.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">mysql</span><span class="o">&gt;</span><span class="w"> </span><span class="k">create</span><span class="w"> </span><span class="k">schema</span><span class="w"> </span><span class="n">test</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Query</span><span class="w"> </span><span class="n">OK</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="nf">affected</span><span class="w"> </span><span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">02</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">mysql</span><span class="o">&gt;</span><span class="w"> </span><span class="k">use</span><span class="w"> </span><span class="n">test</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">Database</span><span class="w"> </span><span class="n">changed</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">mysql</span><span class="o">&gt;</span><span class="w"> </span><span class="k">create</span><span class="w"> </span><span class="n">temporary</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="nf">test</span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="k">primary</span><span class="w"> </span><span class="k">key</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Query</span><span class="w"> </span><span class="n">OK</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="nf">affected</span><span class="w"> </span><span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">03</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">mysql</span><span class="o">&gt;</span><span class="w"> </span><span class="k">show</span><span class="w"> </span><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">test</span><span class="err">\</span><span class="n">G</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="o">***************************</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">***************************</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">       </span><span class="k">Table</span><span class="p">:</span><span class="w"> </span><span class="n">test</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">Create</span><span class="w"> </span><span class="k">Table</span><span class="p">:</span><span class="w"> </span><span class="k">CREATE</span><span class="w"> </span><span class="n">TEMPORARY</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="o">`</span><span class="n">test</span><span class="o">`</span><span class="w"> </span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="o">`</span><span class="n">i</span><span class="o">`</span><span class="w"> </span><span class="kt">int</span><span class="p">(</span><span class="mi">11</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="no">NULL</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="o">`</span><span class="n">i</span><span class="o">`</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">)</span><span class="w"> </span><span class="kp">ENGINE</span><span class="o">=</span><span class="n">InnoDB</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="kp">CHARSET</span><span class="o">=</span><span class="n">latin1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="mi">1</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="kt">set</span><span class="w"> </span><span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">01</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>though you can still tell it to use MyISAM:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-mysql" data-lang="mysql"><span class="line"><span class="cl"><span class="n">mysql</span><span class="o">&gt;</span><span class="w"> </span><span class="k">create</span><span class="w"> </span><span class="n">temporary</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="nf">testmyisam</span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="k">primary</span><span class="w"> </span><span class="k">key</span><span class="p">)</span><span class="w"> </span><span class="kp">engine</span><span class="o">=</span><span class="n">myisam</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">Query</span><span class="w"> </span><span class="n">OK</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="nf">affected</span><span class="w"> </span><span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">02</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="n">mysql</span><span class="o">&gt;</span><span class="w"> </span><span class="k">show</span><span class="w"> </span><span class="k">create</span><span class="w"> </span><span class="k">table</span><span class="w"> </span><span class="n">testmyisam</span><span class="err">\</span><span class="n">G</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="o">***************************</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">***************************</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">       </span><span class="k">Table</span><span class="p">:</span><span class="w"> </span><span class="n">testmyisam</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="k">Create</span><span class="w"> </span><span class="k">Table</span><span class="p">:</span><span class="w"> </span><span class="k">CREATE</span><span class="w"> </span><span class="n">TEMPORARY</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="o">`</span><span class="n">testmyisam</span><span class="o">`</span><span class="w"> </span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="o">`</span><span class="n">i</span><span class="o">`</span><span class="w"> </span><span class="kt">int</span><span class="p">(</span><span class="mi">11</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="no">NULL</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="o">`</span><span class="n">i</span><span class="o">`</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">)</span><span class="w"> </span><span class="kp">ENGINE</span><span class="o">=</span><span class="n">MyISAM</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="kp">CHARSET</span><span class="o">=</span><span class="n">latin1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="mi">1</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="kt">set</span><span class="w"> </span><span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">01</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w">
+</span></span></span></code></pre></td></tr></table>
+</div>
+</div><p>That behavior hasn&rsquo;t changed on 8.0.  So is the <code>--safe-slave-backup</code> even working as intended on 5.7?  I&rsquo;m not sure.</p>
+<h2 id="estoeric-use-cases-and-binlog-formats">Estoeric use cases and binlog formats</h2>
+<p>But is this problem even still relevant?</p>
+<p>Raise your hands if you use <code>CREATE TEMPORARY TABLES</code>.  Now raise your hand if you knew explicit temporary tables even exist.  I bet the majority of people writing queries for MySQL are <em>not</em> aware of them, much less use them.</p>
+<p>Raise your hands if you still use <code>STATEMENT</code> or <code>MIXED</code> replication.  I&rsquo;m sure some do, but the default has been <code>ROW</code> for a very long time.  Now raise your hands if you have application code that explicitly sets the <code>SESSION.binlog_format</code>.  I&rsquo;m sure it&rsquo;s out there, but it can&rsquo;t be very common.</p>
+<p>This is not a fool-proof argument.  Some client somewhere can still explicitly set the session <code>binlog_format=STATEMENT</code> and use temporary tables, right?</p>
+<p>Reading the upgrading to MySQL 8 page:
+<div class="details admonition quote open">
+        <div class="details-summary admonition-title">
+            <i class="icon fas fa-quote-right fa-fw" aria-hidden="true"></i>Quote<i class="details-icon fas fa-angle-right fa-fw" aria-hidden="true"></i>
+        </div>
+        <div class="details-content">
+            <div class="admonition-content">SET @@SESSION.binlog_format cannot be used if the session has any open temporary tables.  <a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database-disaster-recovery.html#aurora-global-database-failover" target="_blank" rel="noopener noreffer ">source</a></div>
+        </div>
+    </div></p>
+<p>This is helpful to close the gap, but it only seems to do so partially:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">Welcome to the MySQL monitor.  Commands end with ; or \g.
+</span></span><span class="line"><span class="cl">Your MySQL connection id is 10474
+</span></span><span class="line"><span class="cl">Server version: 8.0.32 MySQL Community Server - GPL
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Copyright (c) 2000, 2023, Oracle and/or its affiliates.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Oracle is a registered trademark of Oracle Corporation and/or its
+</span></span><span class="line"><span class="cl">affiliates. Other names may be trademarks of their respective
+</span></span><span class="line"><span class="cl">owners.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Type &#39;help;&#39; or &#39;\h&#39; for help. Type &#39;\c&#39; to clear the current input statement.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mysql&gt; use test;
+</span></span><span class="line"><span class="cl">Reading table information for completion of table and column names
+</span></span><span class="line"><span class="cl">You can turn off this feature to get a quicker startup with -A
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mysql&gt; create temporary table temp(i int primary key);
+</span></span><span class="line"><span class="cl">Query OK, 0 rows affected (0.00 sec)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mysql&gt; set @@session.binlog_format=statement;
+</span></span><span class="line"><span class="cl">ERROR 3745 (HY000): Changing @@session.binlog_format is disallowed when the session has open temporary table(s). You could wait until these temporary table(s) are dropped and try again.
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>That&rsquo;s great, but the opposite is not true:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">mysql&gt; set @@session.binlog_format=statement;
+</span></span><span class="line"><span class="cl">Query OK, 0 rows affected (0.00 sec)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mysql&gt; select @@binlog_format;
+</span></span><span class="line"><span class="cl">+-----------------+
+</span></span><span class="line"><span class="cl">| @@binlog_format |
+</span></span><span class="line"><span class="cl">+-----------------+
+</span></span><span class="line"><span class="cl">| STATEMENT       |
+</span></span><span class="line"><span class="cl">+-----------------+
+</span></span><span class="line"><span class="cl">1 row in set (0.00 sec)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">mysql&gt; create temporary table temp(i int primary key);
+</span></span><span class="line"><span class="cl">Query OK, 0 rows affected (0.00 sec)
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>I&rsquo;d honestly just rather have a server variable that totally disallows changing session <code>binlog_format</code>.</p>
+<p>All that said, clients can still do bad things.  Are there clients out there that are doing BOTH:</p>
+<ul>
+<li>setting session <code>binlog_format</code> away from <code>ROW</code>?
+<strong>AND</strong></li>
+<li>using an explicit temporary table to stage data loading into permanent tables?</li>
+</ul>
+<p>I&rsquo;m sure there is, but how likely is it and it is worth Xtrabackup stopping your replica to take the backup?</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>I don&rsquo;t fully understand why replication is stopped for the entire backup in <code>--safe-slave-backup</code> in in Xtrabackup 8 and not in 2.3, but I&rsquo;m not sure I need to know, I&rsquo;m turning it off.</p>
+<p>It&rsquo;d be nice if the argument was better named (maybe: <code>--safe-explicit-replicated-temp-tables</code>) because I expect a lot of people setting up Xtrabackup are using it just based on the name alone and without any real understanding of what it is protecting against.</p>
+<p>The gap that this solves is esoteric and an increasingly improbable case.  Is it possible by not using it I&rsquo;ll get some inconsistent backups, but stopping replication is just not an acceptable tradeoff at this point, at least for my purposes.</p>
+<p>Interestingly, the Xtrabackup manual, in another spot, does call out that this setting is not needed for <code>ROW</code> replication:
+<div class="details admonition quote open">
+        <div class="details-summary admonition-title">
+            <i class="icon fas fa-quote-right fa-fw" aria-hidden="true"></i>Quote<i class="details-icon fas fa-angle-right fa-fw" aria-hidden="true"></i>
+        </div>
+        <div class="details-content">
+            <div class="admonition-content">This option is implemented in order to deal with replicating temporary tables and isn’t necessary with Row-Based-Replication.  <a href="https://docs.percona.com/percona-xtrabackup/8.0/xtrabackup_bin/xbk_option_reference.html?h=replica&#43;backup#-safe-slave-backup" target="_blank" rel="noopener noreffer ">source</a></div>
+        </div>
+    </div>
+This is partially just the Xtrabackup documentation being messy.  I&rsquo;ve heard they <a href="https://github.com/percona/pxb-docs" target="_blank" rel="noopener noreffer ">take PRs</a> if you&rsquo;re interested in fixing it.</p>
+<div class="footnotes" role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn:1">
+<p>Note that this how the option is still in Xtrabackup, whereas I&rsquo;ll be using the newer term &lsquo;replica&rsquo; in this post.  I&rsquo;m not interested in any political debates, but I do find the term &lsquo;replica&rsquo; to be a clearer technical term.&#160;<a href="#fnref:1" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a>&#160;<a href="#fnref1:1" class="footnote-backref" role="doc-backlink">&#x21a9;&#xfe0e;</a></p>
+</li>
+</ol>
+</div>
+]]></description></item></channel></rss>
